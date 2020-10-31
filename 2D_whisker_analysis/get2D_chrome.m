@@ -111,6 +111,7 @@ plot([xb,xt],[yb,yt],'ro')
 
 
 %% new line add by luxi
+% change white color area to black, and change black area to white 
 im1 = bwareaopen(im1, 8000);
 im1 = imcomplement(bwareaopen(imcomplement(im1),8000));
 %% Generate whisker
@@ -162,6 +163,7 @@ for j = 1:2:length(y)-10
     sum_value =0; 
     check_value1 = 0;
     check_value2 = 0; 
+    % find the lowest white pixel point on perpendicualr line 
     for m = x(j)-radius1:x(j)+radius1;
 % %     for m = x(j)-radius1:x(j);
         m = round(m);
@@ -178,7 +180,7 @@ for j = 1:2:length(y)-10
         end
             
     end
-    
+    % find the highest white pixel point on perpendicualr line 
     for m = x(j)+radius1:-1:x(j)-radius1;
         m = round(m);
         y1 = m*k1+b1; % function of perpendicular line. 
@@ -254,8 +256,8 @@ for j = 1:length(new_y)-11
     new_array_value(count) = sum_value1 + sum_value2; 
 end 
 %% modified by luxi, draw center lines 
-plot(x,y,'g-',x(1),y(1),'co',new_center_line_x, new_center_line_y,'r', new_center_line_x_smooth, new_center_line_y_smooth,'b');
-% plot(x(1),y(1),'co',new_center_line_x, new_center_line_y,'r');
+% plot(x,y,'g-',x(1),y(1),'co',new_center_line_x, new_center_line_y,'r', new_center_line_x_smooth, new_center_line_y_smooth,'b');
+plot(x(1),y(1),'co',new_center_line_x, new_center_line_y,'r');
 
 % plot(x,y,'g-',x(1),y(1),'co');
 suptitle('Processed <- origin -> Traced')
@@ -444,12 +446,9 @@ text(Pxstd(end),Pystd(end),'Std')
 axis equal
 grid on
 fprintf('Whisker length: %.2fmm\n', whiskerLength([Px, Py]'));
-
-
-
-
-eval([whisker,'=[Pxstd;Pystd]'';'])
+eval([whisker,'=[Pxstd;Pystd]'';']);
 % save([dir,animal,' Extractions/',animal,'_',whisker,'.mat'],whisker)
+
 
 
 

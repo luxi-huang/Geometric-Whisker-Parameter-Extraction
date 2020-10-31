@@ -1,0 +1,826 @@
+%% Extract whisker from 2D scan image
+% This code is made for extract seal whisker prarameters from 2D scan image
+% Author: Luxi Huang 
+
+% The steps of using this code: 
+% Step1: user need to edit the whisker infomation on the next section
+% Step2: crop the ruler image with 11 bars 
+% step3: crop the whisker which you want to extract the parameters
+% step4: on croppted image, find the whisker base position and press enter key 
+% Step5: on Croppted image, find the whisker tip posiiton and press enter key 
+
+close all
+clear all
+warning off
+nBar = 11; 
+%% Edit whisker information by user
+% change whisker name and harbor name in following two lines 
+whisker = 'LB06';  
+HarborSealNumber = 7; 
+% file names: 
+filename = 'Harbor7_008'; 
+dirs = '/home/luxi/Spring_2020/Whiskers/matlab_code/harbor7/';
+%% Image processing
+% Load image
+im0 = imread([dirs,filename,'.tif']);
+% isa: determine the data type,imu2unit8 convert image to integer (Note by LH)
+if isa(im0,'uint16'), im0 = im2uint8(im0); end
+imshow(im0);
+zoom off
+%% check image is rgb or grayscale:
+if size(im0,3) == 3
+    check_gray = 0; 
+else 
+    check_gray = 1;
+end
+%% Crop image
+fprintf('%s: \n',whisker);
+fprintf('(1) Crop the metric now. Please include %d lines. (1cm)\n\n', nBar);
+im_metric = imcrop(im0);
+fprintf('(2) Crop the whisker now.\n\n');
+im = imcrop(im0);
+close
+%% Changed cropped image to vertical
+if ~issorted(size(im), 'descend'), im = permute(im,[2,1,3]); end
+if ~issorted(size(im_metric), 'descend'), im_metric = permute(im_metric,[2,1,3]); end
+%% Show cropped whiskered image (image 1-1)
+f1 = figure('Position',[100 100 900 800]);
+subplot(1,3,1); 
+imshow(im); 
+%% find base position
+hold on
+fprintf('Now please manually select the base.\n')
+fprintf('You can zoom in/out before you''re ready to select the base, then press enter.\n')
+fprintf('Click once, and press enter again.\n')
+waitfor(f1, 'CurrentCharacter', char(13))
+[xb, yb] = ginput();
+zoom OUT
+xb = round(xb(end)); yb = round(yb(end));
+plot(xb,yb,'ro');
+%% find tip position 
+set(f1,'CurrentCharacter', '1')
+fprintf('When you''re ready to select the tip, press enter.\n')
+fprintf('Click once, and press enter again.\n')
+waitfor(f1, 'CurrentCharacter', char(13))
+[xt, yt] = ginput();
+zoom OUT
+xt = round(xt(end)); yt = round(yt(end));
+plot(xt,yt,'ro');
+%% find the mask of image base on balck or green backgroud 
+if check_gray == 0 
+    [im1,~] = chromeKey(im,'green',[140 100]);
+else
+    im1 = im > 50 & im < 160;
+end 
+%% Generate initial whisker centerlines (base on the concentration of white pixel method)
+radius = 150;
+x = zeros(abs(yb-yt)+1,1);
+y = zeros(abs(yb-yt)+1,1);
+center = xb;
+jj = 1;
+for j = yb:(-1)^(yb>yt):yt
+%     if j <= ym(1) || j >= ym(2)
+%         if j == ceil(ym(2))
+%             center = xm(2); 
+%         end
+        y(jj) = j;
+        x(jj) = center - radius + expIndex(im1(j,center-radius:center+radius));
+        center = x(jj);
+        jj = jj + 1;
+%     end  
+end
+%% %% Show mask image and its inital centerline (image 1-2) 
+subplot(1,3,2);
+imshow(im1); 
+hold on;
+plot(x,y,'g-',x(1),y(1),'co');
+%% cancel small white and black areas
+if check_gray == 0
+    % rgb image
+    im1 = bwareaopen(im1, 150000); %% change small white area to black 
+    im1 = imcomplement(bwareaopen(imcomplement(im1),150000)); %% change small black area to white 
+else 
+    % gray image
+    im1 = bwareaopen(im1, 150000); %% change small white area to black 
+    im1 = imcomplement(bwareaopen(imcomplement(im1),150000)); %% change small black area to white
+end 
+%% Generate another initial center_line after cancel small white and balck areas (base on the concentration of white pixel method)
+radius = 150;
+x0 = zeros(abs(yb-yt)+1,1);
+y0 = zeros(abs(yb-yt)+1,1);
+center = xb;
+jj = 1;
+for j = yb:(-1)^(yb>yt):yt
+%     if j <= ym(1) || j >= ym(2)
+%         if j == ceil(ym(2))
+%             center = xm(2); 
+%         end
+        y0(jj) = j;
+        x0(jj) = center - radius + expIndex(im1(j,center-radius:center+radius));
+        center = x0(jj);
+        jj = jj + 1;
+%     end  
+end
+%% plot new mask (after cancel small white and black areas) and update its initial center lines (iamge 1-3)
+subplot(1,3,3);
+imshow(im1); 
+hold on;
+plot(x0,y0,'g-',x(1),y(1),'co');
+subtitle('Original <- inital mask -> After cancel small white and black areas')
+%% blur image
+windowSize = 10;
+kernel = ones(windowSize) / windowSize ^ 2;
+blurryImage = conv2(single(im1), kernel, 'same');
+binaryImage = blurryImage > 0.5; 
+%% after blur image, change small white area to black, and change black are to white
+binaryImage = bwareaopen(binaryImage, 15000); %% change small white area to black 
+binaryImage = imcomplement(bwareaopen(imcomplement(binaryImage),15000)); %% change small black area to white 
+%% find and plot the edge of image (figure 2-1)
+[B,L] = bwboundaries(binaryImage);
+f2 = figure('Position',[100 100 900 800]);
+subtitle('Outline <- centerline before smooth -> centerline after smooth')
+subplot(1,3,1);
+imshow(im);
+hold on
+for k=1:length(B)
+  boundary = B{k};
+  plot(boundary(:,2), boundary(:,1),...
+    'r-', 'LineWidth', 1)
+end
+%% Generate centerline (base on the concentration of black color ) on blured image whisker 
+radius = 150;
+x = zeros(abs(yb-yt)+1,1);
+y = zeros(abs(yb-yt)+1,1);
+center = xb;
+jj = 1;
+for j = yb:(-1)^(yb>yt):yt
+%     if j <= ym(1) || j >= ym(2)
+%         if j == ceil(ym(2))
+%             center = xm(2); 
+%         end
+        y(jj) = j;
+        x(jj) = center - radius + expIndex(binaryImage(j,center-radius:center+radius));
+        center = x(jj);
+        jj = jj + 1;
+%     end  
+end
+%% plot blured image and center line (base on the concentration of black color) (image 2-2)
+subplot(1,3,2);
+imshow(binaryImage);
+hold on;
+plot(x,y,'r-',x(1),y(1),'co');
+%% newline by luxi (find x and y area along the perpendicular line)
+% smooth x and y value 
+a1 = x;
+b1 = y;
+x = smooth(x,200,'loess');
+y = smooth(y,200,'loess');
+%% plot smooth the lines (figure 2-3)
+subplot(1,3,3);
+imshow(binaryImage);
+hold on;
+plot(x,y,'b-'); 
+%% find new centerlines
+% step 1: find the perpendicular lines along the original smoothed
+% centerline from base to tip
+% step 2: find the white pixel numbers on the perpendicualr lines in lower/upper (left/right) side 
+% step 3: get the upper/lower (left/right) outliens  
+% step 4: find the new center lines based on the mid posiiton of the
+% upper/lower outlines
+
+radius1 = 150;
+lower_line_x = [];
+lower_line_y = [];
+upper_line_x = [];
+upper_line_y = [];
+new_center_line_x = [];
+new_center_line_y = [];
+new_array_value = [];
+count = 0;
+
+for j = 1:2:length(y)-10
+    count = count +1;
+    % step 1: find the perpendicular lines along the original smoothed
+    % center line from base of tip 
+    
+    % find the k values of two nearby points
+    k = (y(j)-y(j+1))/(x(j)-x(j+1));
+    b =  y(j)-x(j)*k;
+    % find the equations of perpendiduclar lines 
+    k1 = (x(j)-x(j+1))/(y(j+1)-y(j));
+    b1 = y(j)-x(j)*k1;
+    
+    % inital sum white pixel numbers
+    sum_value =0; 
+    
+    % step 2: find the white pixel numbers on the perpendicualr lines in lower (left) side 
+    for m = x(j)-radius1:x(j)
+        m = round(m);
+        y1 = m*k1+b1; 
+        y1 = round(y1);
+        sum_value = im1(y1,m) + sum_value;  % if it is white pixel, the value of im1(y1, m) = 1;           
+    end
+    
+    % step 3: get the lower (left) outliens
+    lower_line_x (count) = x(j) - sum_value;
+    lower_line_y (count) = lower_line_x (count) * k1+b1;
+    % find all sum of white pixel values on lower side 
+    new_array_value_lower_line(count) = sum_value;
+    
+    sum_value1 =0;
+    
+    % step 2: find the white pixel numbers on the perpendicualr lines in upper (right) side 
+    for m = x(j):x(j)+radius1
+        m = round(m);
+        y1 = m*k1+b1; % function of perpendicular line. 
+        y1 = round(y1);
+        sum_value1 = im1(y1,m) + sum_value1;      
+    end 
+    % step 3: get the upper (right) outliens  
+    upper_line_x (count) = x(j) + sum_value1;
+    upper_line_y (count) = upper_line_x (count) * k1+b1;
+    % find all sum of white pixel values on lower side
+    new_array_value_upper_line(count) = sum_value1;
+
+    % step 4: find the new center lines based on the mid posiiton of the upper/lower outlines
+    new_center_line_x(count) = (upper_line_x(count) + lower_line_x(count))/2.0;
+    new_center_line_y(count) = (upper_line_y(count) + lower_line_y(count))/2.0;
+    % find sum of white pixel numbers including two side (upper and lower)
+    new_array_value(count) = sum_value + sum_value1; 
+
+end 
+%% plot new centerlines:figure (3-1)
+f3 = figure('Position',[100 100 900 800]);
+subplot(1,3,1);
+imshow(binaryImage);
+hold on;
+plot(new_center_line_x, new_center_line_y,'k');
+%% plot new  outlines:the outlies base on white pixel numbers (in black),original outlines(in blue), figure (3-2)
+subplot(1,3,2);
+imshow(im);
+hold on;
+% add binaryImage edge
+[B,L] = bwboundaries(binaryImage);
+for k=1:length(B)
+  boundary = B{k};
+  plot(boundary(:,2), boundary(:,1),...
+    'b-', 'LineWidth', 1)
+end
+
+plot(upper_line_x, upper_line_y,'r');
+plot(lower_line_x, lower_line_y,'r');
+
+%% find the convex and concave points on centerline
+array_value_smooth = smooth(new_array_value,200,'rloess');
+concave_xx = []; 
+concave_yy = [];
+convex_xx = [];
+convex_yy = [];
+final_concave_xx = []; 
+final_concave_yy = [];
+final_convex_xx = [];
+final_convex_yy = [];
+convex_concave_xx = [];
+convex_concave_yy = [];
+final_convex_concave_xx = [];
+final_convex_concave_yy = [];
+count = 0;
+count1 = 0;
+count2 = 0;
+
+for i = 2: 1: length(array_value_smooth)-1
+    % draw concave line;
+    if (array_value_smooth(i) < array_value_smooth(i+1)) && (array_value_smooth(i)< array_value_smooth(i-1))
+        count1 = count1 +1;
+        count = count + 1;
+        concave_xx(count1) = i;
+        concave_yy(count1) = array_value_smooth(i); 
+        convex_concave_xx(count) = i;
+        convex_concave_yy(count) = array_value_smooth(i);
+    end   
+    
+    % draw convex line; 
+    if (array_value_smooth(i) > array_value_smooth(i+1)) && (array_value_smooth(i) > array_value_smooth(i-1))
+        count2 = count2 +1;
+        count = count + 1;
+        convex_xx(count2) = i;
+        convex_yy(count2) = array_value_smooth(i); 
+        convex_concave_xx(count) = i;
+        convex_concave_yy(count) = array_value_smooth(i);
+    end    
+end
+
+count3 = 0;
+
+%filter find the final convex and concave points
+for i = 2 : 1: length(convex_concave_xx)-1
+    
+    k1 =abs((convex_concave_yy(i) - convex_concave_yy(i-1))/(convex_concave_xx(i) -convex_concave_xx(i-1)));
+    k2 =abs((convex_concave_yy(i) - convex_concave_yy(i+1))/(convex_concave_xx(i) -convex_concave_xx(i+1)));
+   
+   if (k1 > 0.02) && (k2 > 0.02) 
+       count3 = count3 + 1;
+       final_convex_concave_xx(count3) = convex_concave_xx(i);
+       final_convex_concave_yy(count3) = convex_concave_yy(i);
+   end    
+end
+
+%% plot the convex and concave points on the centerline 
+fig4 = figure('Position',[1050,100,600,400]); hold on
+plot(new_array_value); %% sum of white pixel numbers alone the center line 
+plot(array_value_smooth,'k'); %% smoooth 
+plot(concave_xx , concave_yy, 'go'); 
+plot(convex_xx , convex_yy, 'ro'); 
+plot(final_convex_concave_xx , final_convex_concave_yy, 'r*');
+title('Sum of white pixel numbers along the centerline')
+grid on
+%% find the convex and concave points on centerline
+left_array_value_smooth = smooth(new_array_value_lower_line,150,'rloess');
+left_array_value_smooth = smooth(left_array_value_smooth,50,'loess');
+
+left_concave_xx = []; 
+left_concave_yy = [];
+left_convex_xx = [];
+left_convex_yy = [];
+left_convex_concave_xx = [];
+left_convex_concave_yy = [];
+left_final_convex_concave_xx = [];
+left_final_convex_concave_yy = [];
+left_count = 0;
+left_count1 = 0;
+left_count2 = 0;
+
+% find all potential concave and convex points  
+for i = 2: 1: length(left_array_value_smooth)-1
+    % draw concave line;
+    if (left_array_value_smooth(i)< left_array_value_smooth(i+1)) && (left_array_value_smooth(i)<left_array_value_smooth(i-1))
+        left_count1 = left_count1 +1;
+        left_count = left_count + 1;
+        left_concave_xx(left_count1) = i;
+        left_concave_yy(left_count1) = left_array_value_smooth(i); 
+        left_convex_concave_xx(left_count) = i;
+        left_convex_concave_yy(left_count) = left_array_value_smooth(i);
+    end   
+    
+    % draw convex line; 
+    if (left_array_value_smooth(i)> left_array_value_smooth(i+1)) && (left_array_value_smooth(i)>left_array_value_smooth(i-1))
+        left_count2 = left_count2 +1;
+        left_count = left_count + 1;
+        left_convex_xx(left_count2) = i;
+        left_convex_yy(left_count2) = left_array_value_smooth(i); 
+        left_convex_concave_xx(left_count) = i;
+        left_convex_concave_yy(left_count) = left_array_value_smooth(i);
+    end    
+end
+% 
+left_count3 = 0;
+
+m = 0;
+m1 = 0;
+
+% filter concave and convex points base on the slope and difference size of
+% convex and concave points
+for i = 2 : 1: length(left_convex_concave_xx)-1
+    
+    k1 =abs((left_convex_concave_yy(i) - left_convex_concave_yy(i-1))/(left_convex_concave_xx(i) - left_convex_concave_xx(i-1)));
+    k2 =abs((left_convex_concave_yy(i) - left_convex_concave_yy(i+1))/(left_convex_concave_xx(i) - left_convex_concave_xx(i+1)));
+    m = i; 
+    mid_point = round(length(left_convex_concave_yy)/2);
+    mid_height = abs(left_convex_concave_yy(mid_point) - left_convex_concave_yy(mid_point + 1));
+    current_height_left = abs(left_convex_concave_yy(i) - left_convex_concave_yy(i-1));
+    current_height_right = abs(left_convex_concave_yy(i) - left_convex_concave_yy(i+1));
+   if ((k1 > 0.02) || (k2 > 0.02)) && ((current_height_left < 1.5 * mid_height) &&  (current_height_right < 1.5 * mid_height)) && ((current_height_right > 0.15* mid_height) && (current_height_left > 0.15* mid_height))     
+       if left_count3 ~= 0 
+           if abs(m1 - m) ~= 1
+               left_count3 = 0;
+           end 
+       end 
+       
+       m1 = m;
+       left_count3 = left_count3 +1;
+       left_final_convex_concave_xx(left_count3) = left_convex_concave_xx(i);
+       left_final_convex_concave_yy(left_count3) = left_convex_concave_yy(i);
+   end    
+end
+%% plot sum of white pixel numbers on the left side of centerline 
+fig5 = figure('Position',[1050,100,600,400]); hold on
+plot(new_array_value_lower_line); 
+plot(left_array_value_smooth,'k');
+plot(left_concave_xx , left_concave_yy, 'go');
+plot(left_convex_xx , left_convex_yy, 'ro');
+plot(left_final_convex_concave_xx , left_final_convex_concave_yy, 'r*');
+title('Sum of white pixel numbers one the left side of centerline')
+grid on
+%% find the convex and concave points on the right side of centerline
+
+right_array_value_smooth = smooth(new_array_value_upper_line,150,'rloess');
+right_array_value_smooth = smooth(right_array_value_smooth,50,'loess');
+
+right_concave_xx = []; 
+right_concave_yy = [];
+right_convex_xx = [];
+right_convex_yy = [];
+right_convex_concave_xx = [];
+right_convex_concave_yy = [];
+right_final_convex_concave_xx = [];
+right_final_convex_concave_yy = [];
+right_count = 0;
+right_count1 = 0;
+right_count2 = 0;
+% 
+for i = 2: 1: length(right_array_value_smooth)-1
+    % draw concave line;
+    if (right_array_value_smooth(i)< right_array_value_smooth(i+1)) && (right_array_value_smooth(i)<right_array_value_smooth(i-1))
+        right_count1 = right_count1 +1;
+        right_count = right_count + 1;
+        right_concave_xx(right_count1) = i;
+        right_concave_yy(right_count1) = right_array_value_smooth(i); 
+        right_convex_concave_xx(right_count) = i;
+        right_convex_concave_yy(right_count) = right_array_value_smooth(i);
+    end   
+    
+    % draw convex line; 
+    if (right_array_value_smooth(i)> right_array_value_smooth(i+1)) && (right_array_value_smooth(i)>right_array_value_smooth(i-1)) 
+        right_count2 = right_count2 +1;
+        right_count = right_count + 1;
+        right_convex_xx(right_count2) = i;
+        right_convex_yy(right_count2) = right_array_value_smooth(i); 
+        right_convex_concave_xx(right_count) = i;
+        right_convex_concave_yy(right_count) = right_array_value_smooth(i);
+    end    
+end
+% 
+right_count3 = 0;
+m = 0;
+m1 = 0;
+
+for i = 2 : 1: length(right_convex_concave_xx)-1
+    
+    k1 =abs((right_convex_concave_yy(i) - right_convex_concave_yy(i-1))/(right_convex_concave_xx(i) - right_convex_concave_xx(i-1)));
+    k2 =abs((right_convex_concave_yy(i) - right_convex_concave_yy(i+1))/(right_convex_concave_xx(i) - right_convex_concave_xx(i+1)));
+    m = i;
+    
+    mid_length = round(length(right_convex_concave_yy)/2);
+    mid_height = abs(right_convex_concave_yy(mid_length) - right_convex_concave_yy(mid_length + 1));
+    current_height_left = abs(right_convex_concave_yy(i) - right_convex_concave_yy(i-1)) ;
+    current_height_right = abs(right_convex_concave_yy(i) - right_convex_concave_yy(i+1)) ;
+   
+    if ((k1 > 0.01) || (k2 > 0.01))  && ((current_height_left < 1.5 * mid_height) &&  (current_height_right < 1.5 * mid_height)) && ((current_height_right > 0.15* mid_height) && (current_height_left > 0.15* mid_height)) 
+%        if right_count3 ~= 0 
+%            if abs(m1 - m) ~= 1
+%                right_count3 = 0;
+%            end 
+%        end 
+%        m1 = m;
+       right_count3 = right_count3 +1;
+       
+       
+       right_final_convex_concave_xx(right_count3) = right_convex_concave_xx(i);
+       right_final_convex_concave_yy(right_count3) = right_convex_concave_yy(i);
+   end    
+end
+%% plot sum of white pixel numbers on the right side of centerline 
+fig6 = figure('Position',[1050,100,600,400]); hold on
+plot(new_array_value_upper_line);
+plot(right_array_value_smooth,'k');
+plot(right_concave_xx , right_concave_yy, 'go');
+plot(right_convex_xx , right_convex_yy, 'ro');
+plot(right_final_convex_concave_xx , right_final_convex_concave_yy, 'r*');
+title('Sum of white pixel numbers one the right side of centerline')
+grid on
+%% Seperate convex and concave points from left_final_convex_concave, draw them on original img 
+
+% left 
+left_peak_up_xx = []; 
+left_peak_up_yy = [];
+left_peak_down_xx = [];
+left_peak_down_yy = [];
+
+count1 = 0;
+count2 = 0; 
+
+% find the convex and convex position on original img by matching its index number 
+for i = 1:1:length(left_final_convex_concave_xx)
+    for j = 1:1:length(left_concave_xx)
+        if left_final_convex_concave_xx(i) == left_concave_xx(j)
+            count1 = count1 + 1;  
+            left_peak_up_xx(count1) = lower_line_x(left_concave_xx(j)); 
+            left_peak_up_yy(count1) = lower_line_y(left_concave_xx(j));
+            continue;
+        end    
+    end   
+    
+    for k = 1:1:length(left_convex_xx)
+        if left_final_convex_concave_xx(i) == left_convex_xx(k)
+            count2 = count2 + 1; 
+            left_peak_down_xx(count2) = lower_line_x(left_convex_xx(k));
+            left_peak_down_yy(count2) = lower_line_y(left_convex_xx(k));       
+            continue;
+        end    
+    end  
+end    
+
+
+
+% do the same thing on right side
+
+right_peak_up_xx = [];
+right_peak_up_yy = [];
+
+right_peak_down_xx = [];
+right_peak_down_yy = [];
+
+
+count1 = 0;
+count2 = 0; 
+
+for i = 1:1:length(right_final_convex_concave_xx)
+    for j = 1:1:length(right_concave_xx)
+        if right_final_convex_concave_xx(i) == right_concave_xx(j)
+            count1 = count1 + 1; 
+            right_peak_up_xx(count1) = upper_line_x(right_concave_xx(j));
+            right_peak_up_yy(count1) = upper_line_y(right_concave_xx(j));
+            continue;
+        end    
+    end   
+    
+    for k = 1:1:length(right_convex_xx)
+        if right_final_convex_concave_xx(i) == right_convex_xx(k)
+            count2 = count2 + 1;
+            right_peak_down_xx(count2) = upper_line_x(right_convex_xx(k));
+            right_peak_down_yy(count2) = upper_line_y(right_convex_xx(k));       
+            continue;
+        end    
+    end  
+end    
+
+%% plot convex and concave on original graph 
+f9 = figure('Position',[100 100 900 800]);
+subplot(1,3,3);
+imshow(im);
+hold on
+plot(left_peak_up_xx, left_peak_up_yy, 'r*');
+plot(left_peak_down_xx, left_peak_down_yy, 'b*');
+plot(right_peak_up_xx, right_peak_up_yy, 'g*');
+plot(right_peak_down_xx, right_peak_down_yy, 'b*');
+
+%% Generate metric
+bw_metric = imbinarize(im_metric);
+[y_metric, x_metric] = find(bw_metric == 0);
+% Initial location for the centroids
+C_start = [ones(nBar,1)*size(bw_metric,1), linspace(min(y_metric), max(y_metric), nBar)'];
+[~, C] = kmeans([x_metric, y_metric], nBar, 'Start', C_start);
+fig3 = figure('Position',[1050,500,600,400]); hold on
+plot(x_metric, y_metric,'k.'); 
+plot(C(:,1),C(:,2),'w*')
+
+% The pixel length of 1 mm
+[~, iC] = sort(C(:,2));
+C = C(iC,:);
+
+% distance
+mm1 = mean(sqrt(sum((C(2:end,:) - C(1:end-1,:)).^2,2)));
+% vertical
+mm2 = mean(C(2:end,2) - C(1:end-1,2));
+
+
+%%
+x = new_center_line_x;
+y = new_center_line_y;
+x = x/mm2;
+y = y/mm2;
+Px = smooth(x,200,'loess');
+Py = smooth(y,200,'loess');
+right = [];
+fig4 = figure('Position',[1050,100,600,400]); hold on
+plot(x,y,'k-',Px,Py,'r.',Px(1),Py(1),'co');
+[Pxstd, Pystd, th] = stdOrientation2D(Px', Py', 'up');
+plot(Pxstd, Pystd, 'r-', Pxstd(1), Pystd(1), 'co')
+text(Pxstd(end),Pystd(end),'Std')
+axis equal
+grid on
+hold on 
+whisker_Length =  whiskerLength([Px, Py]');
+fprintf('Whisker length: %.2fmm\n', whisker_Length);
+eval([whisker,'=[Pxstd;Pystd]'';'])
+% save([dir,animal,' Extractions/',animal,'_',whisker,'.mat'],whisker)
+%% find the concave and convex points to praph
+Rotate_upper_concave_xx = [];
+Rotate_upper_concave_yy = [];
+Rotate_upper_convex_xx = [];
+Rotate_upper_convex_yy = [];
+
+Rotate_lower_concave_xx = [];
+Rotate_lower_concave_yy = [];
+Rotate_lower_convex_xx = [];
+Rotate_lower_convex_yy = [];
+
+count1 = 0; 
+count2 = 0;
+for i = 1:1:length(left_final_convex_concave_xx)
+    for j = 1:1:length(left_concave_xx)
+        if left_final_convex_concave_xx(i) == left_concave_xx(j) % find the match index numbers
+            count1 = count1 + 1; 
+            slop = (Pystd(left_concave_xx(j)) - Pystd(left_concave_xx(j) -1))/(Pxstd(left_concave_xx(j)) - Pxstd(left_concave_xx(j) -1));
+            NewSlop = -1/slop;
+            b_value = Pystd(left_concave_xx(j)) - NewSlop*Pxstd(left_concave_xx(j));
+            Rotate_upper_concave_yy(count1) = Pystd(left_concave_xx(j)) + left_concave_yy(j)/mm2;
+%             Rotate_upper_concave_xx(count1) = Pxstd(left_concave_xx(j)) - left_concave_yy(j)/mm2 ;
+            Rotate_upper_concave_xx(count1) = (Rotate_upper_concave_yy(count1) - b_value) / NewSlop; 
+            
+            continue;
+        end    
+    end   
+    
+
+    for j = 1:1:length(left_convex_xx)
+        if left_final_convex_concave_xx(i) == left_convex_xx(j) % find the match index numbers
+            count2 = count2 + 1; 
+            slop = (Pystd(left_convex_xx(j)) - Pystd(left_convex_xx(j) -1))/(Pxstd(left_convex_xx(j)) - Pxstd(left_convex_xx(j) -1));
+            NewSlop = -1/slop;
+            b_value = Pystd(left_convex_xx(j)) - NewSlop*Pxstd(left_convex_xx(j));
+            Rotate_upper_convex_yy(count2) = Pystd(left_convex_xx(j)) + left_convex_yy(j)/mm2;
+%             Rotate_upper_concave_xx(count1) = Pxstd(left_concave_xx(j)) - left_concave_yy(j)/mm2 ;
+            Rotate_upper_convex_xx(count2) = (Rotate_upper_convex_yy(count2) - b_value) / NewSlop; 
+            
+            continue;
+        end    
+    end   
+end
+
+count1 = 0; 
+count2 = 0;
+
+for i = 1:1:length(right_final_convex_concave_xx)
+
+    for j = 1:1:length(right_concave_xx)
+        if right_final_convex_concave_xx(i) == right_concave_xx(j) % find the match index numbers
+            count1 = count1 + 1; 
+            slop = (Pystd(right_concave_xx(j)) - Pystd(right_concave_xx(j) -1))/(Pxstd(right_concave_xx(j)) - Pxstd(right_concave_xx(j) -1));
+            NewSlop = -1/slop;
+            b_value = Pystd(right_concave_xx(j)) - NewSlop * Pxstd(right_concave_xx(j));
+            Rotate_lower_concave_yy(count1) = Pystd(right_concave_xx(j)) - right_concave_yy(j)/mm2;
+%             Rotate_upper_concave_xx(count1) = Pxstd(left_concave_xx(j)) - left_concave_yy(j)/mm2 ;
+            Rotate_lower_concave_xx(count1) = (Rotate_lower_concave_yy(count1) - b_value) / NewSlop; 
+            
+            continue;
+        end    
+    end   
+    
+
+    for j = 1:1:length(right_convex_xx)
+        if right_final_convex_concave_xx(i) == right_convex_xx(j) % find the match index numbers
+            count2 = count2 + 1; 
+            slop = (Pystd(right_convex_xx(j)) - Pystd(right_convex_xx(j) -1))/(Pxstd(right_convex_xx(j)) - Pxstd(right_convex_xx(j) -1));
+            NewSlop = -1/slop;
+            b_value = Pystd(right_convex_xx(j)) - NewSlop*Pxstd(right_convex_xx(j));
+            Rotate_lower_convex_yy(count2) = Pystd(right_convex_xx(j)) - right_convex_yy(j)/mm2;
+%             Rotate_upper_concave_xx(count1) = Pxstd(left_concave_xx(j)) - left_concave_yy(j)/mm2 ;
+            Rotate_lower_convex_xx(count2) = (Rotate_lower_convex_yy(count2) - b_value) / NewSlop; 
+            
+            continue;
+        end    
+    end   
+end  
+
+plot(Rotate_upper_concave_xx, Rotate_upper_concave_yy, 'r*');
+plot(Rotate_upper_convex_xx, Rotate_upper_convex_yy, 'b*');
+plot(Rotate_lower_concave_xx, Rotate_lower_concave_yy, 'g*');
+plot(Rotate_lower_convex_xx, Rotate_lower_convex_yy, 'b*');
+%% Find std start and end point
+a= size(Pxstd);
+dis = sqrt((Pystd(1) - Pystd(a(2)))^2 + (Pxstd(1) - Pxstd(a(2)))^2);
+
+%% find the D_base and D_tip 
+c = size(convex_yy);
+a = size(new_array_value);
+m = a(2);
+while (new_array_value(1,m)== 0)
+    m = m - 1;
+end     
+base_diameter = convex_yy(1) / mm2; 
+tip_diameter = new_array_value(1,m)/mm2;
+diamter_ratio = base_diameter/tip_diameter;
+
+%% save data 
+data_filename = 'SealWhisker.mat';
+myFiles = dir(data_filename);
+flag = 0; 
+ma = matfile(data_filename, 'Writable', true);
+for i=1:length(myFiles)
+    clear side;
+    load(myFiles(i).name,'side')
+    if exist('side','var')
+        a = size(side);
+        flag = 1;
+    end
+end
+
+if flag == 0
+   a = [];
+   a(1) = 0;
+end 
+
+% save side data base of L/R ;
+if whisker(1) == 'L'
+    ma.side(a(1)+1, 1)= 1;
+else 
+    ma.side(a(1)+1, 1)= 0;
+end
+
+% save row data;
+ma.row(a(1)+1, 1)= whisker(2);
+
+% save col data 
+ma.col(a(1)+1, 1:2)= whisker(3:4);
+
+% save harbor seal number 
+ma.SealNum(a(1)+1, 1) = HarborSealNumber;
+
+% save diameter and ratiodata  
+ma.D_base(a(1)+1, 1) = base_diameter;
+ma.D_tip(a(1)+1, 1) = tip_diameter;
+ma.Ratio_R(a(1)+1, 1) = base_diameter/tip_diameter;
+
+% save whisker length
+ma.length(a(1)+1, 1) = whisker_Length;
+
+% save whisker data 
+n = size(Pxstd);
+ma.whisker_xx(a(1)+1,1:n(2)) = Pxstd;
+n = size(Pystd);
+ma.whisker_yy(a(1)+1,1:n(2)) = Pystd;
+
+n = size(Rotate_upper_concave_xx);
+ma.std_upper_concave_xx(a(1)+1,1:n(2)) = Rotate_upper_concave_xx;
+n = size(Rotate_upper_concave_yy);
+ma.std_upper_concave_yy(a(1)+1,1:n(2)) = Rotate_upper_concave_yy;
+n = size(Rotate_upper_convex_xx);
+ma.std_upper_convex_xx(a(1)+1,1:n(2)) = Rotate_upper_convex_xx;
+n = size(Rotate_upper_convex_yy);
+ma.std_upper_convex_yy(a(1)+1,1:n(2)) = Rotate_upper_convex_yy;
+
+n = size(Rotate_lower_concave_xx);
+ma.std_lower_concave_xx(a(1)+1,1:n(2)) = Rotate_lower_concave_xx;
+n = size(Rotate_lower_concave_yy);
+ma.std_lower_concave_yy(a(1)+1,1:n(2)) = Rotate_lower_concave_yy;
+n = size(Rotate_lower_convex_xx);
+ma.std_lower_convex_xx(a(1)+1,1:n(2)) = Rotate_lower_convex_xx;
+n = size(Rotate_lower_convex_yy);
+ma.std_lower_convex_yy(a(1)+1,1:n(2)) = Rotate_lower_convex_yy;
+
+% save distance from base to tip
+ma.dis_tip_base(a(1)+1, 1) = dis;
+
+clear ma;
+%% delet most recent row
+% 
+% data_filename = 'SealWhisker.mat';
+% ma = matfile(data_filename, 'Writable', true);
+% 
+% a = size(ma.row);
+% 
+% % delete row data;
+% ma.row(a(1), :)= [];
+% 
+% % delete col data 
+% ma.col(a(1), :)= [];
+% 
+% % delete harbor seal number 
+% ma.SealNum(a(1), :)= [];
+% 
+% % delete diameter and ratiodata  
+% ma.D_base(a(1), :)= [];
+% ma.D_tip(a(1), :)= [];
+% ma.Ratio_R(a(1), :)= [];
+% 
+% % delete whisker length
+% ma.length(a(1), :)= [];
+% 
+% % delete whisker data 
+% 
+% ma.whisker_xx(a(1), :)= [];
+% 
+% ma.whisker_yy(a(1), :)= [];
+% 
+% 
+% ma.std_upper_concave_xx(a(1), :)= [];
+% 
+% ma.std_upper_concave_yy(a(1), :)= [];
+% 
+% ma.std_upper_convex_xx(a(1), :)= [];
+% 
+% ma.std_upper_convex_yy(a(1), :)= [];
+% 
+% 
+% ma.std_lower_concave_xx(a(1), :)= [];
+% 
+% ma.std_lower_concave_yy(a(1), :)= [];
+% 
+% ma.std_lower_convex_xx(a(1), :)= [];
+% 
+% ma.std_lower_convex_yy(a(1), :)= [];
+% 
+% % delete distance from base to tip
+% ma.dis_tip_base(a(1), :)= [];
+

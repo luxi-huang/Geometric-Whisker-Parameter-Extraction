@@ -3,9 +3,10 @@ function [foreground, mask] = chromeKey(im,varargin)
 %background specified as R/G(default)/B. The function outputs the foreground
 %and mask(background) as a logical matrix.
 %
-%   [foreground, mask] = chromeKey(im)
-%   [foreground, mask] = chromeKey(im, CHANNEL)
+%   [foreground, mask] = chromeKey(im) % case 1 
+%   [foreground, mask] = chromeKey(im, CHANNEL) % case 2
 %   [foreground, mask] = chromeKey(im, CHANNEL, bounds)  takes a unit8 rgb
+%   % case three 
 %   image and returns the foreground and background as a logical matrix.
 %   The CHANNEL should be specified as a string containing R/G(default)/B 
 %   or r/g(default)/b. Mask is supposed to have pixels which are stronger
@@ -24,7 +25,6 @@ switch nargin
     case 2
         %  "ischar" determine if input is character array; 
         if ~ischar(varargin{1}), error('Please specify a channel for filtering.'); end
-        
         if contains(varargin{1},'g') || contains(varargin{1},'G')
             channel = 'g';
         elseif contains(varargin{1},'r') || contains(varargin{1},'R')
