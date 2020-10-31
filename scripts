@@ -1,7 +1,0 @@
-vmtkimagereader -ifile D:/Hartmann/PythonAll/seal_whiskers/Har20191023_harbor3_jig1/saved/IMG-0002-00001.dcm --pipe vmtkimagevoiselector -ofile D:/Hartmann/PythonAll/seal_whiskers/Har20191023_harbor3_jig1/image_volume_voi.vti
-
-
-vmtkmarchingcubes -ifile D:/Hartmann/PythonAll/seal_whiskers/Har20191023_harbor3_jig1/image_volume_voi.vti -l 10.0 -ofile D:/Hartmann/PythonAll/seal_whiskers/Har20191023_harbor3_jig1/mc_surface.vtp --pipe vmtksurfaceviewer
-
-vmtklevelsetsegmentation -ifile D:/Hartmann/PythonAll/seal_whiskers/Har20191023_harbor3_jig1/image_volume_voi.vti -ofile D:/Hartmann/PythonAll/seal_whiskers/Har20191023_harbor3_jig1/level_sets.vti
-
