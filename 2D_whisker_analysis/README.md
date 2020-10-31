@@ -6,7 +6,7 @@ The code is desiged to automatically extract 2D seal whisker parameters and save
 The follow image is whisker with extracted concave/convex points
 
 
-![whisker_peaks.png](https://github.com/SeNSE-lab/robots_sealwhiskers/tree/master/2D_whisker_analysis/img/whisker_peaks.png)
+![whisker_peaks.png](https://github.com/SeNSE-lab/robots_sealwhiskers/blob/master/2D_whisker_analysis/img/whisker_peaks.png)
 
 The follow image is rotated whiskers with its convex/concave points
 
