@@ -3,10 +3,6 @@
 ## Introduction
 The code is desiged to automatically extract 2D seal whisker parameters and saved on data under *SealWhisker.mat* file, and the program is setup to automatically detect black or green background.  
 
-The follow image is a whisker with extracted concave/convex points
-
-![whisker_peaks.png](https://github.com/SeNSE-lab/robots_sealwhiskers/blob/master/2D_whisker_analysis/img/whisker_peaks.png=200x50)![rotated_whiskers.png](https://github.com/SeNSE-lab/robots_sealwhiskers/blob/master/2D_whisker_analysis/img/rotated_whiskers.png=200x200)
-
 ### Parameters Saved Under SealWhisker.mat
 | Parameters Name    | Explanation    |
 | :------------- | :------------- |
@@ -45,3 +41,9 @@ The follow image is a whisker with extracted concave/convex points
 ### Optional Steps - if you think the whisker is not valid
 - **Option 1** : open SealWhisker.mat file, and find ifvalid variable, change last row from 1 to 0;
 - **Option 2** : Delete last row for all vairbales under SealWhisker.mat by *runing delet_row.m* file
+
+
+## Reference image
+The follow image is a whisker with extracted concave/convex points
+
+![whisker_peaks.png](https://github.com/SeNSE-lab/robots_sealwhiskers/blob/master/2D_whisker_analysis/img/whisker_peaks.png)![rotated_whiskers.png](https://github.com/SeNSE-lab/robots_sealwhiskers/blob/master/2D_whisker_analysis/img/rotated_whiskers.png)
