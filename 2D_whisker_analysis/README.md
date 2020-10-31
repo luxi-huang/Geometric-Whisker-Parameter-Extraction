@@ -29,21 +29,21 @@ The code is desiged to automatically extract 2D seal whisker parameters and save
 
 ## How to use code
 ### Running new_whisker_parameters.m
-- **Step1** :  user need to edit the whisker infomation on the next section
+- **Step1** :  user needs to edit the whisker infomation
   - Whiker numbers (Row, col, left/right )
-  - harbor number
-- **Step2** : crop the ruler image with 11 bars (use needs to double clicks after they cropped Image)
-- **Step3** : crop the whisker which one needs to be extracted the parameters (user need to double clicks after they cropped Image)
-- **Step4** : On croppted whisker image, find the whisker base and tip position by pressing enter key (two times)
-  - First time press enter key, the mouth arrow would changed to crop shape
+  - Harbor number
+- **Step2** : crop the ruler image with 11 bars (users need to double clicks the mouse after they cropped the image)
+- **Step3** : crop the whisker which one needs to be extracted the parameters (users need to double clicks the mouse after they cropped the image)
+- **Step4** : On croppted whisker image, find the whisker's base and tip position by pressing enter key (two times)
+  - First time press enter key, the mouth arrow would changed to cross shape
   - The second time press enter key, to locate base/tip position (base must be the first to locate)
 
 ### Optional Steps - if you think the whisker is not valid
-- **Option 1** : open SealWhisker.mat file, and find ifvalid variable, change last row from 1 to 0;
-- **Option 2** : Delete last row for all vairbales under SealWhisker.mat by *runing delet_row.m* file
+- **Option 1** : open *SealWhisker.mat* file, and find the *ifvalid* variable, change last row value from 1 to 0;
+- **Option 2** : Delete last row for all vairbales under SealWhisker.mat by runing *delet_row.m* file
 
 
 ## Reference image
-The follow image is a whisker with extracted concave/convex points
+The follow images are whisker with extracted concave/convex points
 
 ![whisker_peaks.png](https://github.com/SeNSE-lab/robots_sealwhiskers/blob/master/2D_whisker_analysis/img/whisker_peaks.png)![rotated_whiskers.png](https://github.com/SeNSE-lab/robots_sealwhiskers/blob/master/2D_whisker_analysis/img/rotated_whiskers.png)
